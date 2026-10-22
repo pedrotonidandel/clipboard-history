@@ -1,0 +1,5 @@
+.build/
+ClipboardHistory.app/
+.DS_Store
+*.swiftpm
+.swiftpm/
