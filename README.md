@@ -64,3 +64,26 @@ Accessibility after each rebuild if you don't bother.
   cleared when the app quits.
 - Menu bar icon offers "Show History", "Clear History", "Settings…", and
   "Quit".
+
+## "Apple could not verify this app" on first launch
+
+This app is signed with a local, self-signed certificate rather than a paid
+Apple Developer ID, so macOS Gatekeeper doesn't recognize it and will warn
+that it's from an "unidentified developer" the first time you (or anyone you
+share the built app with) open it. This is unrelated to the app being open
+source — it's purely about code signing. To open it anyway:
+
+1. Right-click (or Control-click) `ClipboardHistory.app` → **Open** → confirm
+   in the dialog that appears. You only need to do this once.
+2. Or, if it's already quarantined (e.g. downloaded via a browser), clear the
+   quarantine flag: `xattr -d com.apple.quarantine ClipboardHistory.app`.
+
+The only way to make this warning disappear entirely for everyone is to
+enroll in the [Apple Developer Program](https://developer.apple.com/programs/)
+($99/year), sign with a Developer ID Application certificate, and notarize
+each release with `notarytool` — that isn't set up here.
+
+## License
+
+[GPL-3.0](LICENSE) — free to use, modify, and distribute; modified versions
+that you distribute must also be open-sourced under the same license.
