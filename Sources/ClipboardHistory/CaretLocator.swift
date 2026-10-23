@@ -7,28 +7,87 @@ import ApplicationServices
 /// (bottom-left origin) or nil if the frontmost app doesn't expose this
 /// (some web content / custom-drawn UIs don't).
 enum CaretLocator {
-    static func focusedCaretBottomLeft() -> NSPoint? {
+    /// Chromium/Electron apps (Chrome, Slack, VS Code, Electron-based chat
+    /// apps, etc.) often don't build their full accessibility tree unless
+    /// they detect assistive tech is attached. Nudging this attribute wakes
+    /// it up so kAXFocusedUIElement etc. actually work — but the rebuild is
+    /// async, so the very next query can still come back empty. Call this
+    /// proactively on app-activation (see AppDelegate) so it's already warm
+    /// by the time the user triggers the popup, not just at show() time.
+    static func wakeAccessibility(forPID pid: pid_t) {
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+    }
+
+    private static let editableTextRoles: Set<String> = [
+        kAXTextFieldRole as String,
+        kAXTextAreaRole as String,
+        kAXComboBoxRole as String,
+        "AXSearchField"
+    ]
+
+    /// Whether the currently focused UI element looks like an actual text
+    /// input (vs. a button, list, the desktop, or nothing at all) — used to
+    /// decide whether the global shortcut should do anything.
+    static func isEditableTextFocused() -> Bool {
+        if let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            wakeAccessibility(forPID: pid)
+        }
+
         let systemWide = AXUIElementCreateSystemWide()
         var focusedRef: AnyObject?
         guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
-              let focusedRef else { return nil }
+              let focusedRef else {
+            return false
+        }
         let element = focusedRef as! AXUIElement
 
-        if let rect = selectedTextBounds(of: element), isPlausible(rect) {
-            return convertToAppKit(bottomLeftOf: rect)
+        var roleRef: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
+              let role = roleRef as? String else {
+            // Some apps (mainly Electron/web content) don't expose a role at
+            // all for otherwise-legitimate text fields. Don't block on
+            // uncertainty — only block when we positively know it's NOT text.
+            return true
         }
-        if let rect = elementFrame(of: element), isPlausible(rect) {
-            return convertToAppKit(bottomLeftOf: rect)
-        }
-        return nil
+
+        return editableTextRoles.contains(role)
     }
 
-    /// Electron/web apps sometimes report a focused "element" that's really
-    /// the whole window or webview. A sane caret/field rect is small; reject
-    /// anything suspiciously large so we fall back to the mouse location
-    /// instead of anchoring off a bogus giant rect.
-    private static func isPlausible(_ rect: CGRect) -> Bool {
-        rect.width > 0 && rect.height > 0 && rect.width < 800 && rect.height < 200
+    static func focusedCaretBottomLeft() -> NSPoint? {
+        if let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            wakeAccessibility(forPID: pid)
+        }
+
+        let systemWide = AXUIElementCreateSystemWide()
+        var focusedRef: AnyObject?
+        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
+              let focusedRef else {
+            return nil
+        }
+        let element = focusedRef as! AXUIElement
+
+        if let rect = selectedTextBounds(of: element) {
+            // A real caret/selection rect: width 0 for an empty-selection
+            // caret, or the width of the actual selected text — both
+            // legitimately small/precise, so a tight width cap is a good
+            // "is this real data, not a bogus default" signal here.
+            if rect.width >= 0, rect.height > 0, rect.width < 900, rect.height < 300 {
+                return convertToAppKit(bottomLeftOf: rect)
+            }
+        }
+
+        if let rect = elementFrame(of: element) {
+            // A focused *field's* frame can legitimately be very wide (a
+            // full-width chat composer, search bar, etc.) — height is the
+            // useful signal here: reject only if it looks like the whole
+            // window/webview got reported instead of an actual field.
+            if rect.width > 0, rect.height > 0, rect.height < 200 {
+                return convertToAppKit(bottomLeftOf: rect)
+            }
+        }
+
+        return nil
     }
 
     private static func selectedTextBounds(of element: AXUIElement) -> CGRect? {

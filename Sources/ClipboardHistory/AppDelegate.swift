@@ -22,6 +22,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         setUpStatusItem()
+        observeAppActivation()
+    }
+
+    /// Proactively "wakes" each app's accessibility tree as it becomes
+    /// frontmost, so Chromium/Electron apps are already warmed up by the
+    /// time the user triggers the popup (see CaretLocator).
+    private func observeAppActivation() {
+        if let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            CaretLocator.wakeAccessibility(forPID: pid)
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+            CaretLocator.wakeAccessibility(forPID: app.processIdentifier)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

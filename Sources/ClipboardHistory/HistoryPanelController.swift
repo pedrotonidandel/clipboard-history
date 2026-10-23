@@ -239,10 +239,14 @@ final class HistoryPanelController: NSObject, NSWindowDelegate, NSTableViewDataS
         panel.contentView = visualEffect
     }
 
+    /// Called by the global shortcut. Unlike `show()` (used by the menu
+    /// item, which always works), this does nothing if there's no editable
+    /// text field focused — so pressing the shortcut on the Desktop, in a
+    /// list, etc. doesn't pop up a useless popup with nowhere to paste.
     func toggle() {
         if panel.isVisible {
             hide()
-        } else {
+        } else if CaretLocator.isEditableTextFocused() {
             show()
         }
     }
