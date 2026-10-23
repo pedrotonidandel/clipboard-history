@@ -1,5 +1,7 @@
 .build/
 ClipboardHistory.app/
+ClipboardHistory.dmg
+.dmg_staging/
 .DS_Store
 *.swiftpm
 .swiftpm/

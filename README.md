@@ -18,6 +18,19 @@ signed with a local dev identity (see below), in this folder. Drag it into
 `/Applications` if you want it to stick around / launch at login via
 System Settings → General → Login Items.
 
+### Building a .dmg to share
+
+```bash
+./build_dmg.sh
+```
+
+Builds the app (via `build_app.sh`) and packages it into `ClipboardHistory.dmg`
+— a standard drag-to-Applications installer with a custom volume icon and a
+`Read Me First.txt` for whoever you send it to. Since the app is self-signed
+(see below), anyone opening it for the first time will hit the macOS
+Gatekeeper warning described further down; the readme inside the DMG covers
+that.
+
 ## Required permission
 
 The app needs **Accessibility** access to:
